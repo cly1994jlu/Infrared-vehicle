@@ -1,0 +1,619 @@
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE 红蚠
+OBJECT MODULE PLACED IN 红外.OBJ
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE 红外.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          /***************************
+   2          硬件平台：自制红外装置
+   3          程序功能：根据矩阵键盘按下的键发射NEC编码
+   4          ****************************/
+   5          /*---------------------------------------------
+   6          自制红外装置：P3^3(INT1)通过点触按键接地。P1口接矩阵键盘
+   7          P0^7通过s9015接TSAL6200，低电平导通。P3^2（INT0）接HS0038B。
+   8          P0^6接绿色指示灯，低电平导通。P2^5接红色指示灯，低电平导通。
+   9          ---------------------------------------------*/
+  10          #include<reg51.h>
+  11          #include<intrins.h>
+  12          #include"lcd.h"
+  13          /*---------------------------------------------
+  14                           端口定义
+  15          ---------------------------------------------*/
+  16          sbit zaibo=P2^0;   //红外发送数据引脚
+  17          sbit IRIN=P3^2;   //红外外部中断触发
+  18          unsigned char code CDIS1[4]={"For:"};
+  19          unsigned char code CDIS2[5]={"Back:"};
+  20          unsigned char code CDIS3[2]={"T:"};
+  21          unsigned char code CDIS4[3]={"RH:"};
+  22          unsigned char code CDIS5[2]={"S:"};
+  23          unsigned char IrValue[6]; //红外接收数据
+  24          unsigned char Time;       //红外接收数据计时
+  25          bit panduan01;  //panduan01用于判断nec码对应二进制位是0还是1
+  26          int key=16;             //key暂存键值，用于keyscan（）
+  27          unsigned int temp;      //temp扫描中介变量，用于keyscan（）
+  28          unsigned int M0=0,M1=0;//超声波测试距离
+  29          unsigned char U8T_data_H=0,U8RH_data_H=0;//温湿度传感器接收数据
+  30          unsigned char speed=0;
+  31          /*---------------------------------------------
+  32           yindao（）产生引导码：9ms载波+4.5ms无载波，载波占空比：1/3
+  33           ---------------------------------------------*/
+  34          void yindao()
+  35          {
+  36   1         unsigned int jishu;
+  37   1      
+  38   1         for(jishu=0;jishu<=345;jishu++)             //8.99ms有载波
+  39   1           {
+  40   2           zaibo=0;
+  41   2           _nop_();_nop_();_nop_();_nop_();
+  42   2           _nop_();_nop_();_nop_();_nop_();
+  43   2           _nop_();
+  44   2            zaibo=1;
+  45   2           _nop_();_nop_();_nop_();_nop_();
+  46   2           _nop_();_nop_();_nop_();_nop_();
+  47   2           _nop_();_nop_();_nop_();_nop_();
+  48   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  49   2          }   
+  50   1          
+  51   1          zaibo=1;
+  52   1      
+  53   1          for(jishu=0;jishu<=172;jishu++)           //4.49ms无载波
+  54   1          {
+  55   2           _nop_();_nop_();_nop_();_nop_();
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 2   
+
+  56   2           _nop_();_nop_();_nop_();_nop_();
+  57   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  58   2           _nop_();_nop_();_nop_();_nop_();
+  59   2           _nop_();_nop_();_nop_();_nop_();
+  60   2           _nop_();_nop_();_nop_();_nop_();_nop_();//此for语句共有26个nop（）
+  61   2      
+  62   2          }
+  63   1        
+  64   1      
+  65   1      }
+  66          /*---------------------------------------------
+  67           emit1（）发射“1”
+  68           若发数字1:21.5个有载波的载波周期，加65个无载波的载波周期
+  69           ---------------------------------------------*/
+  70          void emit1()
+  71          {
+  72   1          
+  73   1          unsigned char a;
+  74   1          
+  75   1          for(a=0;a<=20;a++)
+  76   1              {
+  77   2               zaibo=0;
+  78   2           _nop_();_nop_();_nop_();_nop_();
+  79   2           _nop_();_nop_();_nop_();_nop_();
+  80   2           _nop_();
+  81   2            zaibo=1;
+  82   2           _nop_();_nop_();_nop_();_nop_();
+  83   2           _nop_();_nop_();_nop_();_nop_();
+  84   2           _nop_();_nop_();_nop_();_nop_();
+  85   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  86   2              }
+  87   1          
+  88   1          zaibo=1;
+  89   1          for(a=0;a<=64;a++)
+  90   1              {
+  91   2               _nop_();_nop_();_nop_();_nop_();
+  92   2           _nop_();_nop_();_nop_();_nop_();
+  93   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  94   2           _nop_();_nop_();_nop_();_nop_();
+  95   2           _nop_();_nop_();_nop_();_nop_();
+  96   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  97   2              }
+  98   1      }
+  99          /*---------------------------------------------
+ 100           emit0（）发射“0”:
+ 101           21.5个有载波，加21.5个无载波（即P0^7-红外发射端口保持为高电平）
+ 102           ---------------------------------------------*/
+ 103           void emit0()
+ 104           {
+ 105   1      
+ 106   1         unsigned char a;
+ 107   1         
+ 108   1         for(a=0;a<=20;a++)
+ 109   1         {
+ 110   2           zaibo=0;
+ 111   2           _nop_();_nop_();_nop_();_nop_();
+ 112   2           _nop_();_nop_();_nop_();_nop_();
+ 113   2           _nop_();
+ 114   2            zaibo=1;
+ 115   2           _nop_();_nop_();_nop_();_nop_();
+ 116   2           _nop_();_nop_();_nop_();_nop_();
+ 117   2           _nop_();_nop_();_nop_();_nop_();
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 3   
+
+ 118   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+ 119   2         }
+ 120   1         
+ 121   1         zaibo=1;
+ 122   1         for(a=0;a<=20;a++)
+ 123   1         {
+ 124   2           _nop_();_nop_();_nop_();_nop_();
+ 125   2           _nop_();_nop_();_nop_();_nop_();
+ 126   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+ 127   2           _nop_();_nop_();_nop_();_nop_();
+ 128   2           _nop_();_nop_();_nop_();_nop_();
+ 129   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+ 130   2         }
+ 131   1       }
+ 132          /*---------------------------------------------
+ 133          NEC()发射nec脉冲链，其中a表示地址码的形参，b表示命令码的形参，都是8位二进制数 
+ 134          c为a的反码，d为b的反码，发射顺序为：acbd,先发8位中的高位（这与解码对应）
+ 135          ---------------------------------------------*/  
+ 136          void NEC_emit(unsigned char a,unsigned char b)
+ 137          {
+ 138   1       void emit1();
+ 139   1       void emit0();
+ 140   1       void yindao();
+ 141   1      
+ 142   1       unsigned char c,d;     //c,d用于存放对应a，b的反码
+ 143   1       c=~a;
+ 144   1       d=~b;
+ 145   1      
+ 146   1       yindao();              //发射引导码
+ 147   1      
+ 148   1       panduan01=a&0x01;     //若地址码对应二进制第一位（最低位）为1，则panduan1等于1，否则为零。
+ 149   1       if(panduan01)emit1();
+ 150   1       else emit0();
+ 151   1       panduan01=a&0x02;
+ 152   1       if(panduan01)emit1();
+ 153   1       else emit0();
+ 154   1       panduan01=a&0x04;
+ 155   1       if(panduan01)emit1();
+ 156   1       else emit0();
+ 157   1       panduan01=a&0x08;
+ 158   1       if(panduan01)emit1();
+ 159   1       else emit0();
+ 160   1       panduan01=a&0x10;
+ 161   1       if(panduan01)emit1();
+ 162   1       else emit0();
+ 163   1       panduan01=a&0x20;
+ 164   1       if(panduan01)emit1();
+ 165   1       else emit0();
+ 166   1       panduan01=a&0x40;
+ 167   1       if(panduan01)emit1();
+ 168   1       else emit0();
+ 169   1       panduan01=a&0x80;
+ 170   1       if(panduan01)emit1();
+ 171   1       else emit0();                   //发射a（地址）的原码
+ 172   1      
+ 173   1        panduan01=c&0x01;     
+ 174   1       if(panduan01)emit1();
+ 175   1       else emit0();
+ 176   1       panduan01=c&0x02;
+ 177   1       if(panduan01)emit1();
+ 178   1       else emit0();
+ 179   1       panduan01=c&0x04;
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 4   
+
+ 180   1       if(panduan01)emit1();
+ 181   1       else emit0();
+ 182   1       panduan01=c&0x08;
+ 183   1       if(panduan01)emit1();
+ 184   1       else emit0();
+ 185   1       panduan01=c&0x10;
+ 186   1       if(panduan01)emit1();
+ 187   1       else emit0();
+ 188   1       panduan01=c&0x20;
+ 189   1       if(panduan01)emit1();
+ 190   1       else emit0();
+ 191   1       panduan01=c&0x40;
+ 192   1       if(panduan01)emit1();
+ 193   1       else emit0();
+ 194   1       panduan01=c&0x80;
+ 195   1       if(panduan01)emit1();
+ 196   1       else emit0();                   //发射a的反码c
+ 197   1      
+ 198   1       panduan01=b&0x01;     
+ 199   1       if(panduan01)emit1();
+ 200   1       else emit0();
+ 201   1       panduan01=b&0x02;
+ 202   1       if(panduan01)emit1();
+ 203   1       else emit0();
+ 204   1       panduan01=b&0x04;
+ 205   1       if(panduan01)emit1();
+ 206   1       else emit0();
+ 207   1       panduan01=b&0x08;
+ 208   1       if(panduan01)emit1();
+ 209   1       else emit0();
+ 210   1       panduan01=b&0x10;
+ 211   1       if(panduan01)emit1();
+ 212   1       else emit0();
+ 213   1       panduan01=b&0x20;
+ 214   1       if(panduan01)emit1();
+ 215   1       else emit0();
+ 216   1       panduan01=b&0x40;
+ 217   1       if(panduan01)emit1();
+ 218   1       else emit0();
+ 219   1       panduan01=b&0x80;
+ 220   1       if(panduan01)emit1();
+ 221   1       else emit0();                   //发射b(命令)的原码
+ 222   1      
+ 223   1       panduan01=d&0x01;     
+ 224   1       if(panduan01)emit1();
+ 225   1       else emit0();
+ 226   1       panduan01=d&0x02;
+ 227   1       if(panduan01)emit1();
+ 228   1       else emit0();
+ 229   1       panduan01=d&0x04;
+ 230   1       if(panduan01)emit1();
+ 231   1       else emit0();
+ 232   1       panduan01=d&0x08;
+ 233   1       if(panduan01)emit1();
+ 234   1       else emit0();
+ 235   1       panduan01=d&0x10;
+ 236   1       if(panduan01)emit1();
+ 237   1       else emit0();
+ 238   1       panduan01=d&0x20;
+ 239   1       if(panduan01)emit1();
+ 240   1       else emit0();
+ 241   1       panduan01=d&0x40;
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 5   
+
+ 242   1       if(panduan01)emit1();
+ 243   1       else emit0();
+ 244   1       panduan01=d&0x80;
+ 245   1       if(panduan01)emit1();
+ 246   1       else emit0();                   //发射b的反码d
+ 247   1      
+ 248   1       emit0();   
+ 249   1      
+ 250   1      }
+ 251          
+ 252          /*--------------
+ 253          毫秒延时程序
+ 254          ---------------*/
+ 255          void delayms(unsigned int xms)
+ 256          {
+ 257   1       unsigned int i,j;
+ 258   1       for(i=xms;i>0;i--)
+ 259   1             for(j=110;j>0;j--);
+ 260   1      }
+ 261          /*--------------------
+ 262          keyscan(),矩阵扫描子程序：键盘的编号为0 1 2 3
+ 263                                                4 5 6 7
+ 264                                                            8 9 A B
+ 265                                                                                    C D E F
+ 266          P1^0~P1^3接第1到第4行,P1^4~P1^7接从左数第1到第四列。
+ 267          ---------------------*/
+ 268          void keyscan()
+ 269          {
+ 270   1      //第一行扫描
+ 271   1       P1=0xfe;
+ 272   1       temp=P1;                                                                                        
+ 273   1              
+ 274   1       temp=temp&0xf0;                                                                                
+ 275   1       if(temp!=0xf0)                                                                                 
+ 276   1        {                                                                                              
+ 277   2                      
+ 278   2          delayms(10);        //**消抖**
+ 279   2              if(temp!=0xf0)
+ 280   2               {
+ 281   3                  temp=P1;
+ 282   3                      switch(temp)                                                                     
+ 283   3              //******************************************Learn
+ 284   3                         {                                                                             
+ 285   4                              //switch()语句的用法,这里temp是一个变量
+ 286   4                       case 0xee:                                                                      
+ 287   4                      //switch（）是多分支选择语句
+ 288   4                     key=0;                                                                            
+ 289   4      //*******************************************Learn
+ 290   4                     break;
+ 291   4      
+ 292   4                case 0xde:
+ 293   4                     key=1;
+ 294   4                                 break;
+ 295   4      
+ 296   4                case 0xbe:
+ 297   4                     key=2;
+ 298   4                                 break;
+ 299   4      
+ 300   4                case 0x7e:
+ 301   4                     key=3;                              
+ 302   4                     break;
+ 303   4                         }
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 6   
+
+ 304   3                           while(temp!=0xf0)          //等待键释放
+ 305   3                   {
+ 306   4                     temp=P1;
+ 307   4                     temp=temp&0xf0;
+ 308   4                   }
+ 309   3               }
+ 310   2        }                                                                             
+ 311   1      //第二行扫描
+ 312   1       P1=0xfd;
+ 313   1       temp=P1;
+ 314   1       temp=temp&0xf0;
+ 315   1       if(temp!=0xf0)
+ 316   1        {
+ 317   2          delayms(10);                //消抖
+ 318   2              if(temp!=0xf0)
+ 319   2               {
+ 320   3                  temp=P1;
+ 321   3                      switch(temp)
+ 322   3                       {
+ 323   4                       case 0xed:
+ 324   4                     key=4;
+ 325   4                                 break;                       //*********Learn此处break语句是用来跳出 
+ 326   4      //本switch结构，执行switch下的语句
+ 327   4      
+ 328   4                case 0xdd:
+ 329   4                     key=5;
+ 330   4                     break;
+ 331   4      
+ 332   4      
+ 333   4                case 0xbd:
+ 334   4                     key=6;
+ 335   4                     break;
+ 336   4      
+ 337   4                case 0x7d:
+ 338   4                     key=7;
+ 339   4                                 break;
+ 340   4                        }
+ 341   3                          while(temp!=0xfd)
+ 342   3                 {
+ 343   4                  temp=P1;
+ 344   4                  temp=temp&0xfd;
+ 345   4                 }
+ 346   3      
+ 347   3                       }
+ 348   2                       }                                                                 
+ 349   1      //第三行扫描
+ 350   1       P1=0xfb;
+ 351   1       temp=P1;
+ 352   1       temp=temp&0xf0;
+ 353   1       if(temp!=0xf0)
+ 354   1        {
+ 355   2          delayms(10);                //消抖
+ 356   2              if(temp!=0xf0)
+ 357   2               {
+ 358   3                  temp=P1;
+ 359   3                      switch(temp)
+ 360   3                       {
+ 361   4                       case 0xeb:
+ 362   4                     key=8;
+ 363   4                     break;
+ 364   4      
+ 365   4                case 0xdb:
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 7   
+
+ 366   4                     key=9;
+ 367   4                     break;
+ 368   4      
+ 369   4                case 0xbb:
+ 370   4                     key=10;
+ 371   4                     break;
+ 372   4      
+ 373   4                case 0x7b:
+ 374   4                     key=11;
+ 375   4                     break;
+ 376   4                       }
+ 377   3                      while(temp!=0xfb)
+ 378   3                 {
+ 379   4                  temp=P1;
+ 380   4                  temp=temp&0xfb;
+ 381   4                 }
+ 382   3                       }
+ 383   2                       }                                                                 
+ 384   1      //扫描第四行
+ 385   1       P1=0xf7;
+ 386   1       temp=P1;
+ 387   1       temp=temp&0xf0;
+ 388   1       if(temp!=0xf0)
+ 389   1        {
+ 390   2          delayms(10);                //消抖
+ 391   2              if(temp!=0xf0)
+ 392   2               {
+ 393   3                  temp=P1;
+ 394   3                      switch(temp)
+ 395   3                       {
+ 396   4                       case 0xe7:
+ 397   4                     key=12;
+ 398   4                     break;
+ 399   4      
+ 400   4                case 0xd7:
+ 401   4                     key=13;
+ 402   4                     break;
+ 403   4      
+ 404   4                case 0xb7:
+ 405   4                     key=14;
+ 406   4                     break;
+ 407   4      
+ 408   4                case 0x77:
+ 409   4                     key=15;
+ 410   4                     break;
+ 411   4                       }
+ 412   3                       while(temp!=0xf7)
+ 413   3                 {
+ 414   4                  temp=P1;
+ 415   4                  temp=temp&0xf7;
+ 416   4                 }
+ 417   3                       }
+ 418   2                       }                                                                 
+ 419   1      }
+ 420          void IrInit()
+ 421          {
+ 422   1              IT0=1;//下降沿触发
+ 423   1              EX0=0;//关闭中断0允许
+ 424   1              EA=1;   //打开总中断
+ 425   1              IRIN=1;//初始化端口
+ 426   1      }
+ 427          /*--------------
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 8   
+
+ 428          主函数
+ 429          ---------------*/
+ 430          void main()
+ 431          {   unsigned char i;
+ 432   1          void NEC_emit(unsigned char a,unsigned char b);
+ 433   1          void keyscan(); 
+ 434   1          LcdInit();
+ 435   1              IrInit();
+ 436   1              LcdWriteCom(0x80);
+ 437   1              for(i=0;i<4;i++)
+ 438   1              {
+ 439   2                      LcdWriteData(CDIS1[i]); 
+ 440   2              }
+ 441   1              LcdWriteCom(0x80+0x08);
+ 442   1              for(i=0;i<5;i++)
+ 443   1              {
+ 444   2                      LcdWriteData(CDIS2[i]); 
+ 445   2              }
+ 446   1              LcdWriteCom(0xC0);
+ 447   1              for(i=0;i<2;i++)
+ 448   1              {
+ 449   2                      LcdWriteData(CDIS3[i]); 
+ 450   2              }
+ 451   1              LcdWriteCom(0xC0+0x05);
+ 452   1              for(i=0;i<3;i++)
+ 453   1              {
+ 454   2                      LcdWriteData(CDIS4[i]); 
+ 455   2              }
+ 456   1              LcdWriteCom(0xC0+0x0B);
+ 457   1              for(i=0;i<2;i++)
+ 458   1              {
+ 459   2                      LcdWriteData(CDIS5[i]); 
+ 460   2              }
+ 461   1          while(1)
+ 462   1                      {
+ 463   2                          keyscan();
+ 464   2                              switch(key)
+ 465   2                                      {
+ 466   3                                      case 0:NEC_emit(0x22,0x00);key=16;break;
+ 467   3                                      case 1:NEC_emit(0x22,0x01);key=16;break;
+ 468   3                                      case 2:NEC_emit(0x22,0x02);key=16;break;
+ 469   3                                      case 3:NEC_emit(0x22,0x03);key=16;break;
+ 470   3                                              case 4:NEC_emit(0x22,0x04);key=16;break;
+ 471   3                                      case 5:NEC_emit(0x22,0x05);EX0=1;delayms(200);EX0=0;M0=IrValue[2];IrValue[2]=15;key=16;break;
+ 472   3                                      case 6:NEC_emit(0x22,0x06);EX0=1;delayms(200);EX0=0;M1=IrValue[2];IrValue[2]=25;;key=16;break
+             -;
+ 473   3                                      case 7:NEC_emit(0x22,0x07);EX0=1;delayms(200);EX0=0;U8T_data_H=IrValue[2];IrValue[2]=18;key=1
+             -6;break;
+ 474   3                                              case 10:NEC_emit(0x22,0x08);EX0=1;delayms(200);EX0=0;U8RH_data_H=IrValue[2];IrValue[2]=33;key=16;brea
+             -k;
+ 475   3                                      case 11:NEC_emit(0x22,0x0a);key=16;break;
+ 476   3                                      case 12:NEC_emit(0x22,0x0b);speed=20;key=16;break;
+ 477   3                                              case 13:NEC_emit(0x22,0x0c);speed=40;key=16;break;
+ 478   3                                      case 14:NEC_emit(0x22,0x0d);speed=60;key=16;break;
+ 479   3                                      case 15:NEC_emit(0x22,0x0e);speed=80;key=16;break;
+ 480   3                                              default:break;
+ 481   3                                  }
+ 482   2                               LcdWriteCom(0x80+0x04);
+ 483   2                               LcdWriteData('0' + (M1 / 100));        //百位           
+ 484   2                               LcdWriteData('0' + (M1 % 100 / 10)); // 十位
+ 485   2                               LcdWriteData('0' + (M1 % 10));           // 个位 
+ 486   2                               LcdWriteCom(0x80+0x0D);
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 9   
+
+ 487   2                               LcdWriteData('0' + (M0 / 100));        //百位           
+ 488   2                               LcdWriteData('0' + (M0 % 100 / 10)); // 十位
+ 489   2                               LcdWriteData('0' + (M0 % 10));           // 个位 
+ 490   2                               LcdWriteCom(0xC0+0x02);                 
+ 491   2                               LcdWriteData('0' + (U8T_data_H/10)); // 十位
+ 492   2                               LcdWriteData('0' + (U8T_data_H % 10));           // 个位 
+ 493   2                               LcdWriteCom(0xC0+0x08);                 
+ 494   2                               LcdWriteData('0' + (U8RH_data_H/10)); // 十位
+ 495   2                               LcdWriteData('0' + (U8RH_data_H % 10));                  // 个位
+ 496   2                               LcdWriteCom(0xC0+0x0D);                 
+ 497   2                               LcdWriteData('0' + (speed/10)); // 十位
+ 498   2                               LcdWriteData('0' + (speed% 10));                 // 个位
+ 499   2                       }
+ 500   1      }
+ 501          
+ 502          void Delay_Ms(unsigned int x)   //0.14ms误差 0us
+ 503          {
+ 504   1              unsigned char i;
+ 505   1              while(x--)
+ 506   1              {
+ 507   2                      for (i = 0; i<13; i++)
+ 508   2                      {}
+ 509   2              }
+ 510   1      }
+ 511          
+ 512          void ReadIr() interrupt 0
+ 513          {
+ 514   1              unsigned char j,k;
+ 515   1              unsigned int err;
+ 516   1              Time=0;                                  
+ 517   1              Delay_Ms(70);
+ 518   1      
+ 519   1              if(IRIN==0)             //确认是否真的接收到正确的信号
+ 520   1              {        
+ 521   2                      
+ 522   2                      err=1000;                               //1000*10us=10ms,超过说明接收到错误的信号
+ 523   2                      /*当两个条件都为真是循环，如果有一个条件为假的时候跳出循环，免得程序出错的时
+ 524   2                      侯，程序死在这里*/      
+ 525   2                      while((IRIN==0)&&(err>0))       //等待前面9ms的低电平过去               
+ 526   2                      {                       
+ 527   3                              Delay_Ms(1);
+ 528   3                              err--;
+ 529   3                      } 
+ 530   2                      if(IRIN==1)                     //如果正确等到9ms低电平
+ 531   2                      {
+ 532   3                              err=500;
+ 533   3                              while((IRIN==1)&&(err>0))                //等待4.5ms的起始高电平过去
+ 534   3                              {
+ 535   4                                      Delay_Ms(1);
+ 536   4                                      err--;
+ 537   4                              }
+ 538   3                              for(k=0;k<4;k++)                //共有4组数据
+ 539   3                              {                               
+ 540   4                                      for(j=0;j<8;j++)        //接收一组数据
+ 541   4                                      {
+ 542   5      
+ 543   5                                              err=60;         
+ 544   5                                              while((IRIN==0)&&(err>0))//等待信号前面的560us低电平过去
+ 545   5                                              {
+ 546   6                                                      Delay_Ms(1);
+ 547   6                                                      err--;
+ 548   6                                              }
+C51 COMPILER V9.00   红蚠                                                                  05/16/2015 07:46:39 PAGE 10  
+
+ 549   5                                              err=500;
+ 550   5                                              while((IRIN==1)&&(err>0))        //计算高电平的时间长度。
+ 551   5                                              {
+ 552   6                                                      Delay_Ms(1);//0.14ms
+ 553   6                                                      Time++;
+ 554   6                                                      err--;
+ 555   6                                                      if(Time>30)
+ 556   6                                                      {
+ 557   7                                                              EX0=1;
+ 558   7                                                              return;
+ 559   7                                                      }
+ 560   6                                              }
+ 561   5                                              IrValue[k]>>=1;  //k表示第几组数据
+ 562   5                                              if(Time>=10)                    //如果高电平出现大于565us，那么是1
+ 563   5                                              {
+ 564   6                                                      IrValue[k]|=0x80;
+ 565   6                                              }
+ 566   5                                              Time=0;         //用完时间要重新赋值                                                    
+ 567   5                                      }
+ 568   4                              }
+ 569   3                      }
+ 570   2                      if(IrValue[2]!=~IrValue[3])
+ 571   2                      {
+ 572   3                              return;
+ 573   3                      }
+ 574   2              }                       
+ 575   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2159    ----
+   CONSTANT SIZE    =     16    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     18       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
