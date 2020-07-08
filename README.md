@@ -15,4 +15,8 @@ Hardware: AT89C51 SCM, LCD1602 screen, ISD1820 soundplayer, L298N motor mudule, 
 
 Software: Keil IDE for coding and generating executable files
 
-Language: c
+Language: C
+
+Folders:
+
+
