@@ -1,0 +1,200 @@
+C51 COMPILER V9.00   MAIN                                                                  05/12/2015 20:53:26 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE main.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          /*******************************************************************************
+   2          *                 
+   3          *                                      普中科技
+   4          --------------------------------------------------------------------------------
+   5          * 实 验 名               : 红外线显示试验
+   6          * 实验说明       : LCD1602显示接收到的红外线键值。
+   7          * 连接方式       : 见连接图
+   8          * 注    意               : 
+   9          *******************************************************************************/
+  10          
+  11          #include<reg51.h>
+  12          #include"lcd.h"
+  13          
+  14          sbit IRIN=P3^2;
+  15          
+  16          unsigned char code CDIS1[13]={" Red Control "};
+  17          unsigned char code CDIS2[13]={" IR-CODE:--H "};
+  18          unsigned char IrValue[6];
+  19          unsigned char Time;
+  20          void IrInit();
+  21          void DelayMs(unsigned int );
+  22          /*******************************************************************************
+  23          * 函数名         : main
+  24          * 函数功能                 : 主函数
+  25          * 输入           : 无
+  26          * 输出           : 无
+  27          *******************************************************************************/
+  28          
+  29          void main()
+  30          {
+  31   1              unsigned char i;
+  32   1              IrInit();       
+  33   1              LcdInit();
+  34   1              LcdWriteCom(0x80);
+  35   1              for(i=0;i<13;i++)
+  36   1              {
+  37   2                      LcdWriteData(CDIS1[i]); 
+  38   2              }
+  39   1              LcdWriteCom(0x80+0x40);
+  40   1              for(i=0;i<13;i++)
+  41   1              {
+  42   2                      LcdWriteData(CDIS2[i]); 
+  43   2              }
+  44   1              while(1)
+  45   1              {
+  46   2                      IrValue[4]=IrValue[2]>>4;                       //高位
+  47   2                      IrValue[5]=IrValue[2]&0x0f;             //低位  
+  48   2                      if(IrValue[4]>9)
+  49   2                      {
+  50   3                              LcdWriteCom(0xc0+0x09);                 //设置显示位置
+  51   3                              LcdWriteData(0x37+IrValue[4]);  //将数值转换为该显示的ASCII码
+  52   3                      }
+  53   2                      else
+  54   2                      {
+  55   3                              LcdWriteCom(0xc0+0x09);
+C51 COMPILER V9.00   MAIN                                                                  05/12/2015 20:53:26 PAGE 2   
+
+  56   3                              LcdWriteData(IrValue[4]+0x30);  //将数值转换为该显示的ASCII码
+  57   3                      }       
+  58   2                      if(IrValue[5]>9)
+  59   2                      {
+  60   3                              LcdWriteCom(0xc0+0x0a);
+  61   3                              LcdWriteData(IrValue[5]+0x37);          //将数值转换为该显示的ASCII码
+  62   3                      }
+  63   2                      else
+  64   2                      {
+  65   3                              LcdWriteCom(0xc0+0x0a);
+  66   3                              LcdWriteData(IrValue[5]+0x30);          //将数值转换为该显示的ASCII码
+  67   3                      }       
+  68   2              }
+  69   1      }                                                                        
+  70          /*******************************************************************************
+  71          * 函数名         : DelayMs()
+  72          * 函数功能                 : 延时
+  73          * 输入           : x
+  74          * 输出           : 无
+  75          *******************************************************************************/
+  76          
+  77          void DelayMs(unsigned int x)   //0.14ms误差 0us
+  78          {
+  79   1              unsigned char i;
+  80   1              while(x--)
+  81   1              {
+  82   2                      for (i = 0; i<13; i++)
+  83   2                      {}
+  84   2              }
+  85   1      }
+  86          /*******************************************************************************
+  87          * 函数名         : IrInit()
+  88          * 函数功能                 : 初始化红外线接收
+  89          * 输入           : 无
+  90          * 输出           : 无
+  91          *******************************************************************************/
+  92          
+  93          void IrInit()
+  94          {
+  95   1              IT0=1;//下降沿触发
+  96   1              EX0=1;//打开中断0允许
+  97   1              EA=1;   //打开总中断
+  98   1      
+  99   1              IRIN=1;//初始化端口
+ 100   1      }
+ 101          /*******************************************************************************
+ 102          * 函数名         : ReadIr()
+ 103          * 函数功能                 : 读取红外数值的中断函数
+ 104          * 输入           : 无
+ 105          * 输出           : 无
+ 106          *******************************************************************************/
+ 107          
+ 108          void ReadIr() interrupt 0
+ 109          {
+ 110   1              unsigned char j,k;
+ 111   1              unsigned int err;
+ 112   1              Time=0;                                  
+ 113   1              DelayMs(70);
+ 114   1      
+ 115   1              if(IRIN==0)             //确认是否真的接收到正确的信号
+ 116   1              {        
+ 117   2                      
+C51 COMPILER V9.00   MAIN                                                                  05/12/2015 20:53:26 PAGE 3   
+
+ 118   2                      err=1000;                               //1000*10us=10ms,超过说明接收到错误的信号
+ 119   2                      /*当两个条件都为真是循环，如果有一个条件为假的时候跳出循环，免得程序出错的时
+ 120   2                      侯，程序死在这里*/      
+ 121   2                      while((IRIN==0)&&(err>0))       //等待前面9ms的低电平过去               
+ 122   2                      {                       
+ 123   3                              DelayMs(1);
+ 124   3                              err--;
+ 125   3                      } 
+ 126   2                      if(IRIN==1)                     //如果正确等到9ms低电平
+ 127   2                      {
+ 128   3                              err=500;
+ 129   3                              while((IRIN==1)&&(err>0))                //等待4.5ms的起始高电平过去
+ 130   3                              {
+ 131   4                                      DelayMs(1);
+ 132   4                                      err--;
+ 133   4                              }
+ 134   3                              for(k=0;k<4;k++)                //共有4组数据
+ 135   3                              {                               
+ 136   4                                      for(j=0;j<8;j++)        //接收一组数据
+ 137   4                                      {
+ 138   5      
+ 139   5                                              err=60;         
+ 140   5                                              while((IRIN==0)&&(err>0))//等待信号前面的560us低电平过去
+ 141   5                                              {
+ 142   6                                                      DelayMs(1);
+ 143   6                                                      err--;
+ 144   6                                              }
+ 145   5                                              err=500;
+ 146   5                                              while((IRIN==1)&&(err>0))        //计算高电平的时间长度。
+ 147   5                                              {
+ 148   6                                                      DelayMs(1);//0.14ms
+ 149   6                                                      Time++;
+ 150   6                                                      err--;
+ 151   6                                                      if(Time>30)
+ 152   6                                                      {
+ 153   7                                                              EX0=1;
+ 154   7                                                              return;
+ 155   7                                                      }
+ 156   6                                              }
+ 157   5                                              IrValue[k]>>=1;  //k表示第几组数据
+ 158   5                                              if(Time>=10)                    //如果高电平出现大于565us，那么是1
+ 159   5                                              {
+ 160   6                                                      IrValue[k]|=0x80;
+ 161   6                                              }
+ 162   5                                              Time=0;         //用完时间要重新赋值                                                    
+ 163   5                                      }
+ 164   4                              }
+ 165   3                      }
+ 166   2                      if(IrValue[2]!=~IrValue[3])
+ 167   2                      {
+ 168   3                              return;
+ 169   3                      }
+ 170   2              }                       
+ 171   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    421    ----
+   CONSTANT SIZE    =     26    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      7       2
+C51 COMPILER V9.00   MAIN                                                                  05/12/2015 20:53:26 PAGE 4   
+
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,271 @@
+C51 COMPILER V9.00   红蚠                                                                  05/13/2015 17:12:55 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE 红蚠
+OBJECT MODULE PLACED IN 红外.OBJ
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE 红外.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<reg52.h>
+   2          #include<intrins.h>
+   3          sbit zaibo=P0^7;
+   4          sbit lvdeng=P0^6;
+   5          /*---------------------------------------------
+   6                           全局变量声明
+   7          ---------------------------------------------*/
+   8          bit panduan01;  //panduan01用于判断nec码对应二进制位是0还是1
+   9          int key=16;             //key暂存键值，用于keyscan（）
+  10          unsigned int temp;      //temp扫描中介变量，用于keyscan（）
+  11          /*---------------------------------------------
+  12           yindao（）产生引导码：9ms载波+4.5ms无载波，载波占空比：1/3
+  13           ---------------------------------------------*/
+  14          void yindao()
+  15          {
+  16   1         unsigned int jishu;
+  17   1      
+  18   1         for(jishu=0;jishu<=345;jishu++)             //8.99ms有载波
+  19   1           {
+  20   2           zaibo=0;
+  21   2           _nop_();_nop_();_nop_();_nop_();
+  22   2           _nop_();_nop_();_nop_();_nop_();
+  23   2           _nop_();
+  24   2            zaibo=1;
+  25   2           _nop_();_nop_();_nop_();_nop_();
+  26   2           _nop_();_nop_();_nop_();_nop_();
+  27   2           _nop_();_nop_();_nop_();_nop_();
+  28   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  29   2          }   
+  30   1          
+  31   1          zaibo=1;
+  32   1      
+  33   1          for(jishu=0;jishu<=172;jishu++)           //4.49ms无载波
+  34   1          {
+  35   2           _nop_();_nop_();_nop_();_nop_();
+  36   2           _nop_();_nop_();_nop_();_nop_();
+  37   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  38   2           _nop_();_nop_();_nop_();_nop_();
+  39   2           _nop_();_nop_();_nop_();_nop_();
+  40   2           _nop_();_nop_();_nop_();_nop_();_nop_();//此for语句共有26个nop（）
+  41   2      
+  42   2          }
+  43   1        
+  44   1      
+  45   1      }
+  46          /*---------------------------------------------
+  47           emit1（）发射“1”
+  48           若发数字1:21.5个有载波的载波周期，加65个无载波的载波周期
+  49           ---------------------------------------------*/
+  50          void emit1()
+  51          {
+  52   1          
+  53   1          unsigned char a;
+  54   1          
+  55   1          for(a=0;a<=20;a++)
+C51 COMPILER V9.00   红蚠                                                                  05/13/2015 17:12:55 PAGE 2   
+
+  56   1              {
+  57   2               zaibo=0;
+  58   2           _nop_();_nop_();_nop_();_nop_();
+  59   2           _nop_();_nop_();_nop_();_nop_();
+  60   2           _nop_();
+  61   2            zaibo=1;
+  62   2           _nop_();_nop_();_nop_();_nop_();
+  63   2           _nop_();_nop_();_nop_();_nop_();
+  64   2           _nop_();_nop_();_nop_();_nop_();
+  65   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  66   2              }
+  67   1          
+  68   1          zaibo=1;
+  69   1          for(a=0;a<=64;a++)
+  70   1              {
+  71   2               _nop_();_nop_();_nop_();_nop_();
+  72   2           _nop_();_nop_();_nop_();_nop_();
+  73   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  74   2           _nop_();_nop_();_nop_();_nop_();
+  75   2           _nop_();_nop_();_nop_();_nop_();
+  76   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  77   2              }
+  78   1      }
+  79          /*---------------------------------------------
+  80           emit0（）发射“0”:
+  81           21.5个有载波，加21.5个无载波（即P0^7-红外发射端口保持为高电平）
+  82           ---------------------------------------------*/
+  83           void emit0()
+  84           {
+  85   1      
+  86   1         unsigned char a;
+  87   1         
+  88   1         for(a=0;a<=20;a++)
+  89   1         {
+  90   2           zaibo=0;
+  91   2           _nop_();_nop_();_nop_();_nop_();
+  92   2           _nop_();_nop_();_nop_();_nop_();
+  93   2           _nop_();
+  94   2            zaibo=1;
+  95   2           _nop_();_nop_();_nop_();_nop_();
+  96   2           _nop_();_nop_();_nop_();_nop_();
+  97   2           _nop_();_nop_();_nop_();_nop_();
+  98   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+  99   2         }
+ 100   1         
+ 101   1         zaibo=1;
+ 102   1         for(a=0;a<=20;a++)
+ 103   1         {
+ 104   2           _nop_();_nop_();_nop_();_nop_();
+ 105   2           _nop_();_nop_();_nop_();_nop_();
+ 106   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+ 107   2           _nop_();_nop_();_nop_();_nop_();
+ 108   2           _nop_();_nop_();_nop_();_nop_();
+ 109   2           _nop_();_nop_();_nop_();_nop_();_nop_();
+ 110   2         }
+ 111   1       }
+ 112          /*---------------------------------------------
+ 113          NEC()发射nec脉冲链，其中a表示地址码的形参，b表示命令码的形参，都是8位二进制数 
+ 114          c为a的反码，d为b的反码，发射顺序为：acbd,先发8位中的高位（这与解码对应）
+ 115          ---------------------------------------------*/  
+ 116          void NEC_emit(unsigned char a,unsigned char b)
+ 117          {bit panduan01;  //panduan01用于判断nec码对应二进制位是0还是1
+C51 COMPILER V9.00   红蚠                                                                  05/13/2015 17:12:55 PAGE 3   
+
+ 118   1       void emit1();
+ 119   1       void emit0();
+ 120   1       void yindao();
+ 121   1      
+ 122   1       unsigned char c,d;     //c,d用于存放对应a，b的反码
+ 123   1       c=~a;
+ 124   1       d=~b;
+ 125   1      
+ 126   1       yindao();              //发射引导码
+ 127   1      
+ 128   1       panduan01=a&0x01;     //若地址码对应二进制第一位（最低位）为1，则panduan1等于1，否则为零。
+ 129   1       if(panduan01)emit1();
+ 130   1       else emit0();
+ 131   1       panduan01=a&0x02;
+ 132   1       if(panduan01)emit1();
+ 133   1       else emit0();
+ 134   1       panduan01=a&0x04;
+ 135   1       if(panduan01)emit1();
+ 136   1       else emit0();
+ 137   1       panduan01=a&0x08;
+ 138   1       if(panduan01)emit1();
+ 139   1       else emit0();
+ 140   1       panduan01=a&0x10;
+ 141   1       if(panduan01)emit1();
+ 142   1       else emit0();
+ 143   1       panduan01=a&0x20;
+ 144   1       if(panduan01)emit1();
+ 145   1       else emit0();
+ 146   1       panduan01=a&0x40;
+ 147   1       if(panduan01)emit1();
+ 148   1       else emit0();
+ 149   1       panduan01=a&0x80;
+ 150   1       if(panduan01)emit1();
+ 151   1       else emit0();                   //发射a（地址）的原码
+ 152   1      
+ 153   1        panduan01=c&0x01;     
+ 154   1       if(panduan01)emit1();
+ 155   1       else emit0();
+ 156   1       panduan01=c&0x02;
+ 157   1       if(panduan01)emit1();
+ 158   1       else emit0();
+ 159   1       panduan01=c&0x04;
+ 160   1       if(panduan01)emit1();
+ 161   1       else emit0();
+ 162   1       panduan01=c&0x08;
+ 163   1       if(panduan01)emit1();
+ 164   1       else emit0();
+ 165   1       panduan01=c&0x10;
+ 166   1       if(panduan01)emit1();
+ 167   1       else emit0();
+ 168   1       panduan01=c&0x20;
+ 169   1       if(panduan01)emit1();
+ 170   1       else emit0();
+ 171   1       panduan01=c&0x40;
+ 172   1       if(panduan01)emit1();
+ 173   1       else emit0();
+ 174   1       panduan01=c&0x80;
+ 175   1       if(panduan01)emit1();
+ 176   1       else emit0();                   //发射a的反码c
+ 177   1      
+ 178   1       panduan01=b&0x01;     
+ 179   1       if(panduan01)emit1();
+C51 COMPILER V9.00   红蚠                                                                  05/13/2015 17:12:55 PAGE 4   
+
+ 180   1       else emit0();
+ 181   1       panduan01=b&0x02;
+ 182   1       if(panduan01)emit1();
+ 183   1       else emit0();
+ 184   1       panduan01=b&0x04;
+ 185   1       if(panduan01)emit1();
+ 186   1       else emit0();
+ 187   1       panduan01=b&0x08;
+ 188   1       if(panduan01)emit1();
+ 189   1       else emit0();
+ 190   1       panduan01=b&0x10;
+ 191   1       if(panduan01)emit1();
+ 192   1       else emit0();
+ 193   1       panduan01=b&0x20;
+ 194   1       if(panduan01)emit1();
+ 195   1       else emit0();
+ 196   1       panduan01=b&0x40;
+ 197   1       if(panduan01)emit1();
+ 198   1       else emit0();
+ 199   1       panduan01=b&0x80;
+ 200   1       if(panduan01)emit1();
+ 201   1       else emit0();                   //发射b(命令)的原码
+ 202   1      
+ 203   1       panduan01=d&0x01;     
+ 204   1       if(panduan01)emit1();
+ 205   1       else emit0();
+ 206   1       panduan01=d&0x02;
+ 207   1       if(panduan01)emit1();
+ 208   1       else emit0();
+ 209   1       panduan01=d&0x04;
+ 210   1       if(panduan01)emit1();
+ 211   1       else emit0();
+ 212   1       panduan01=d&0x08;
+ 213   1       if(panduan01)emit1();
+ 214   1       else emit0();
+ 215   1       panduan01=d&0x10;
+ 216   1       if(panduan01)emit1();
+ 217   1       else emit0();
+ 218   1       panduan01=d&0x20;
+ 219   1       if(panduan01)emit1();
+ 220   1       else emit0();
+ 221   1       panduan01=d&0x40;
+ 222   1       if(panduan01)emit1();
+ 223   1       else emit0();
+ 224   1       panduan01=d&0x80;
+ 225   1       if(panduan01)emit1();
+ 226   1       else emit0();                   //发射b的反码d
+ 227   1      
+ 228   1       emit0();   
+ 229   1      
+ 230   1      }
+ 231          
+ 232          /*--------------
+ 233          毫秒延时程序
+ 234          ---------------*/
+ 235          void delayms(unsigned int xms)
+ 236          {
+ 237   1       unsigned int i,j;
+ 238   1       for(i=xms;i>0;i--)
+ 239   1             for(j=110;j>0;j--);
+ 240   1      }
+
+C51 COMPILER V9.00   红蚠                                                                  05/13/2015 17:12:55 PAGE 5   
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    777    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      4    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1       1
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
