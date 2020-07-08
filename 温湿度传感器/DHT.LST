@@ -1,0 +1,177 @@
+C51 COMPILER V9.00   DHT                                                                   05/15/2015 21:41:43 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE DHT
+OBJECT MODULE PLACED IN DHT.OBJ
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE DHT.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include<reg51.h>
+   2          #include<intrins.h>
+   3          #include"lcd.h"
+   4          sbit bit11=P2^0;
+   5          sbit Tx0=P2^2;//前向超声波产生脉冲引脚，延时 20us
+   6          sbit Rx0=P2^3;//回波引脚，进入外部中断 1
+   7          sbit Tx1=P1^4;//后向超声波产生脉冲引脚，延时 20us
+   8          sbit Rx1=P1^5;//回波引脚，进入外部中断 1
+   9          unsigned char U8T_data_H,U8T_data_L,U8RH_data_H,U8RH_data_L,U8checkdata;
+  10          unsigned char F16T,F16RH; //用于最终读取的温湿度数据
+  11          bit b;                    //超声波定时器计数标志位
+  12          long Th0,Tl0;     //定时器0计数数值
+  13          unsigned long time0=0,time2=0; //定时器0计数数值之和
+  14          unsigned int Del20us=0;//延时变量，在超声波脉冲引脚中产生 20us 的方波
+  15          unsigned int M0=0,M1=0;//超声波测试距离
+  16          unsigned char U8T_data_H,U8T_data_L,U8RH_data_H,U8RH_data_L,U8checkdata;//温湿度传感器接收数据
+  17          
+  18          void Delay_ms(unsigned int n)//n 毫秒延时
+  19          {
+  20   1        unsigned char j;
+  21   1        while(n--)
+  22   1        {
+  23   2          for(j=0;j<125;j++);
+  24   2         }
+  25   1      }
+  26          
+  27          void Delay_us(unsigned char n) //N us 延时函数精度±4us
+  28          {
+  29   1        n=n/2;
+  30   1        while(--n);
+  31   1      }
+  32          void Measure0() //前向测距
+  33                  {
+  34   1                      b=1;                             //初始化中断溢出值
+  35   1                      TR0=0;                          //关定时器 0
+  36   1                      TH0=0;                          //赋定时器初始值高 8 位为 0
+  37   1                      TL0=0;                          //赋定时器初始值低 8 位为 0
+  38   1                      Tx0=1;                          //拉高超声波脉冲引脚电位
+  39   1                      for(Del20us=20;Del20us>0;Del20us--);            //延时 20us
+  40   1                      Tx0=0;                                  //拉低超声波脉冲引脚电位，使之产生 20us 的方波信号，使超声波模块开始工作。
+  41   1                      while(Rx0==0);                                  //等待回波引脚变 1接受脉冲；
+  42   1                      TR0=1;                          //开定时器0，开始计数
+  43   1                      while(Rx0==1);                                  //等待回波引脚变 0接受脉冲；
+  44   1                              Th0=TH0;                                        //读取时间
+  45   1                              Tl0=TL0;                                   
+  46   1                              while(!b);                                //等待中断溢出
+  47   1                              time0=Th0*256+Tl0; 
+  48   1                              M0=(17*time0)/1100;             //测量的结果单位为 cm
+  49   1              }
+  50          
+  51          void Measure1() //后向测距
+  52                  {
+  53   1                      b=1;                             //初始化中断溢出值
+  54   1                      TR0=0;                          //关定时器 0
+  55   1                      TH0=0;                          //赋定时器初始值高 8 位为 0
+C51 COMPILER V9.00   DHT                                                                   05/15/2015 21:41:43 PAGE 2   
+
+  56   1                      TL0=0;                          //赋定时器初始值低 8 位为 0
+  57   1                      Tx1=1;                          //拉高超声波脉冲引脚电位
+  58   1                      for(Del20us=20;Del20us>0;Del20us--);            //延时 20us
+  59   1                      Tx1=0;                                  //拉低超声波脉冲引脚电位，使之产生 20us 的方波信号，使超声波模块开始工作。
+  60   1                      while(Rx1==0);                                  //等待回波引脚变 1接受脉冲；
+  61   1                      TR0=1;                          //开定时器0，开始计数
+  62   1                      while(Rx1==1);                                  //等待回波引脚变 0接受脉冲；
+  63   1                              Th0=TH0;                                        //读取时间
+  64   1                              Tl0=TL0;                                   
+  65   1                              while(!b);                                //等待中断溢出
+  66   1                              time2=Th0*256+Tl0; 
+  67   1                              M1=(17*time2)/1100;             //测量的结果单位为 cm
+  68   1      }
+  69          unsigned char COM(void)
+  70          {
+  71   1        unsigned char i,U8temp,U8comdata;
+  72   1        for(i=0;i<8;i++)
+  73   1        {
+  74   2         while(!bit11); //表示读取的高电位延时大于20 多us 则读取的是1 否则读取的是0
+  75   2         Delay_us(35); //通过U8FLAG 可判断bit11 显示数据的脉长
+  76   2         U8temp=0;
+  77   2         if(bit11)U8temp=1;
+  78   2         while(bit11);
+  79   2         U8comdata<<=1;
+  80   2         U8comdata|=U8temp; //0
+  81   2         }//rof
+  82   1         return U8comdata;
+  83   1      }
+  84          //--------------------------------
+  85          //-----温湿度读取子程序------------
+  86          //--------------------------------
+  87          //----以下变量均为全局变量--------
+  88          //----温度高8 位== U8T_data_H------
+  89          //----温度低8 位== U8T_data_L------
+  90          //----湿度高8 位== U8RH_data_H-----
+  91          //----湿度低8 位== U8RH_data_L-----
+  92          //----校验8 位== U8checkdata-----
+  93          //----调用相关子程序如下----------
+  94          //---- Delay();, Delay_10us();,COM();
+  95          //--------------------------------
+  96          void getDHT11(void)
+  97          {
+  98   1      GO1: bit11=0;
+  99   1           Delay_ms(20);      //主机拉低18ms
+ 100   1           bit11=1;
+ 101   1           Delay_us(60); //总线由上拉电阻拉高主机延时20us
+ 102   1      //主机设为输入判断从机响应信号
+ 103   1      // bit11=1;
+ 104   1      //判断从机是否有低电平响应信号如不响应则跳出，响应则向下运行
+ 105   1           if(!bit11) //T !
+ 106   1           {
+ 107   2           while(!bit11); //wait DHT goto high
+ 108   2           while(bit11);//数据接收状态
+ 109   2           U8RH_data_H=COM();
+ 110   2           U8RH_data_L=COM();
+ 111   2           U8T_data_H=COM();
+ 112   2           U8T_data_L=COM();
+ 113   2           U8checkdata=COM();
+ 114   2           bit11=1;
+ 115   2           if((U8T_data_H+U8T_data_L+U8RH_data_H+U8RH_data_L)!=U8checkdata)     //数据校验
+ 116   2           goto GO1;//if check wrong,read again
+ 117   2           }
+C51 COMPILER V9.00   DHT                                                                   05/15/2015 21:41:43 PAGE 3   
+
+ 118   1           F16T=U8T_data_H+(float)U8T_data_L/256; //change integer to float
+ 119   1           F16RH=U8RH_data_H+(float)U8RH_data_L/256;
+ 120   1      }
+ 121          void INIT_timer0()//初始化定时器0
+ 122          {
+ 123   1              TMOD=0x01;//定时器工作方式 1：16 位，初值不能重装
+ 124   1              Th0=0;//初始化变量值
+ 125   1              Tl0=0;//初始化变量值
+ 126   1              ET0=1;//开定时器 0 中断
+ 127   1              EA=1;
+ 128   1      }
+ 129          void main ()
+ 130          {
+ 131   1         LcdInit();
+ 132   1         INIT_timer0();
+ 133   1         while(1)
+ 134   1         {  Measure0() ;
+ 135   2               Measure1() ;
+ 136   2           // getDHT11();
+ 137   2                LcdWriteCom(0x80); 
+ 138   2            LcdWriteData('0' + (F16T % 100 / 10)); // 十位
+ 139   2                LcdWriteData('0' + (F16T % 10));                // 个位
+ 140   2                LcdWriteCom(0x80+0x08); 
+ 141   2            LcdWriteData('0' + (M0 % 100 / 10)); // 十位
+ 142   2                LcdWriteData('0' + (M0 % 10));                  // 个位  
+ 143   2                LcdWriteCom(0xC0); 
+ 144   2                LcdWriteData('0' + (F16RH % 100 / 10)); // 十位
+ 145   2                LcdWriteData('0' + (F16RH % 10));               // 个位 
+ 146   2                LcdWriteCom(0xC0+0x08); 
+ 147   2            LcdWriteData('0' + (M1 % 100 / 10)); // 十位
+ 148   2                LcdWriteData('0' + (M1 % 10));                  // 个位  
+ 149   2         }      
+ 150   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    733    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     29    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
