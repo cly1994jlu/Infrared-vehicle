@@ -17,6 +17,6 @@ Software: Keil IDE for coding and generating executable files
 
 Language: C
 
-Folders:
+The figures of our controller and vehicle, as well as a report written in Chinese can also be found in the repository.
 
 
