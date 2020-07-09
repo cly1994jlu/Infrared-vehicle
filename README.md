@@ -7,7 +7,7 @@ This is a poject that my classmates and I cooperated to accomplish a long time a
 
 In this project, we designed a controller and a vehicle using C51 SCM. We can use a controller to send controlling signals to the vehicle using infrared signal, to remotely control the motions (upward, backward, turing left or right, speeding up or down, and sending and receiving data). The vehicle is equipped with an ultrasound module so that it can detect the distance with other obstacles to avoid being crashed. Besides, the vehicle can sense the temperature and humidity of the environment, send back the results to the controller, and display them in the screen of the controller.
 
-This is a happy memory of cooperation and creation a long time ago. I can still remember the happy lab and many talented guys that we worked with. However, I turned to research on communication theories and algorithms, so I did not continue working on SCM and implementations later on. Many details are forgotten and I cannot even make sure the codes still work well with the development of the community. One thing to mention that the comments and reports are all written in Chinese, so it is easier to understand an implement with Chinese background.
+This is a happy memory of cooperation and creation a long time ago. I can still remember the happy lab and many talented guys that we worked with. However, I turned to research on communication theories and algorithms later on, so I did not continue working on SCM and hardware designs. Many details are forgotten and I cannot even make sure the codes still work well with the development of the community. One thing to mention is that the comments and reports are all written in Chinese, so it is easier to understand and implement these codes if you have a Chinese background.
 
 Prerequisits:
 
@@ -17,6 +17,6 @@ Software: Keil IDE for coding and generating executable files
 
 Language: C
 
-The figures of our controller and vehicle, as well as a report written in Chinese can also be found in the repository.
+The figures of our controller and vehicle, as well as a report written in Chinese can also be found in this repository.
 
 
